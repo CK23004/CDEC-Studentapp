@@ -1,0 +1,22 @@
+# Dependencies and build outputs
+**/node_modules
+**/dist
+**/__pycache__
+**/*.pyc
+**/*.pyo
+
+# Virtual environments
+**/.venv
+**/venv
+**/env
+
+# Local environment & secrets
+**/.env
+**/.env.local
+
+# Logs and system files
+*.log
+**/.DS_Store
+**/.git
+**/.gitignore
+**/.vscode

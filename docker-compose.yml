@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  # Tier 3: Database Container (MySQL 8.0)
+  mysql:
+    image: mysql:8.0
+    container_name: student_mysql_db
+    restart: always
+    env_file:
+      - ./backend/.env
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - student_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Tier 2: Backend Container (Flask API)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: student_flask_api
+    restart: always
+    env_file:
+      - ./backend/.env
+    ports:
+      - "5005:5005"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - student_network
+
+  # Tier 1: Frontend Container (React + Vite served via Nginx)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: student_react_app
+    restart: always
+    env_file:
+      - ./frontend/.env
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - student_network
+
+networks:
+  student_network:
+    driver: bridge
+
+volumes:
+  mysql_data:

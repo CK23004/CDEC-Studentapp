@@ -1,0 +1,14 @@
+# Dependencies
+frontend/node_modules/
+backend/venv/
+
+# Build output
+frontend/dist/
+
+# Environment files (keep examples, ignore actuals)
+backend/.env
+frontend/.env
+
+# OS / editor
+.DS_Store
+*.swp

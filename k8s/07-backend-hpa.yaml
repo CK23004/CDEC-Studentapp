@@ -1,0 +1,32 @@
+# -----------------------------------------------------------------------------
+# Backend HorizontalPodAutoscaler (HPA)
+# -----------------------------------------------------------------------------
+# Only the backend has an HPA because it is the stateless, CPU-bound tier that
+# benefits from scaling out under load. The frontend serves static assets (kept
+# fixed) and MySQL is a single stateful primary (cannot be scaled by replicas).
+#
+# The HPA measures each backend Pod's CPU usage as a PERCENTAGE of its CPU
+# REQUEST (250m set in the Deployment). At averageUtilization: 70, if average
+# CPU across Pods exceeds 70% of 250m, more Pods are added (up to 10); when it
+# drops, Pods are removed (down to 2). This is why the Deployment MUST set a
+# CPU request, and why the Metrics Server must be running.
+# -----------------------------------------------------------------------------
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: backend-hpa
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: backend           # Scales the backend Deployment
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

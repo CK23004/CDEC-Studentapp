@@ -1,0 +1,58 @@
+# -----------------------------------------------------------------------------
+# Frontend Deployment (React, served on port 80)
+# -----------------------------------------------------------------------------
+# A Deployment is used because the frontend is stateless: it serves the built
+# React/Vite static files. Any Pod can serve any user, so Pods are
+# interchangeable and easily replaced.
+#
+# No HPA for the frontend (fixed replica count is enough for static assets).
+#
+# >>> REPLACE YOUR_DOCKER_USERNAME with your Docker Hub username. <<<
+# Public Docker Hub image => NO imagePullSecrets needed.
+# -----------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: default
+  labels:
+    app: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend        # Pod label -> matched by the frontend Service
+    spec:
+      containers:
+        - name: frontend
+          image: chinmay2301/cbz-frontend:latest   # <-- REPLACE username
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          # Serve check on "/" (the web server root) on port 80.
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 3

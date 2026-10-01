@@ -1,0 +1,27 @@
+# -----------------------------------------------------------------------------
+# StorageClass for dynamic EBS provisioning
+# -----------------------------------------------------------------------------
+# A StorageClass describes HOW volumes get created on demand. When the MySQL
+# StatefulSet's volumeClaimTemplates asks for storage, this class tells the
+# Amazon EBS CSI Driver to dynamically create a real EBS volume. This is why we
+# do NOT create a static PersistentVolume manually.
+# -----------------------------------------------------------------------------
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ebs-sc
+# The EBS CSI driver is responsible for creating/attaching EBS volumes.
+provisioner: ebs.csi.aws.com
+parameters:
+  type: gp3     # gp3 is the current-gen general-purpose SSD: cheaper and lets
+                # you tune IOPS/throughput independently of size (better than gp2).
+  fsType: ext4
+# WaitForFirstConsumer delays volume creation until a Pod using the PVC is
+# scheduled. This ensures the EBS volume is created in the SAME Availability
+# Zone as the Pod's node (EBS volumes are zonal and can't cross AZs).
+volumeBindingMode: WaitForFirstConsumer
+# Allows growing the volume later by editing the PVC (no shrinking).
+allowVolumeExpansion: true
+# Retain keeps the EBS volume even if the PVC is deleted, protecting database
+# data from accidental loss. Change to Delete if you want automatic cleanup.
+reclaimPolicy: Retain

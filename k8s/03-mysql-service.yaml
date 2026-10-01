@@ -1,0 +1,24 @@
+# -----------------------------------------------------------------------------
+# MySQL Service (Headless)
+# -----------------------------------------------------------------------------
+# clusterIP: None makes this a "headless" Service. StatefulSets use headless
+# Services to give each Pod a stable DNS name (e.g. mysql-0.mysql). For a
+# single MySQL replica, the backend simply connects to the Service name "mysql".
+#
+# MySQL is INTERNAL only: no NodePort, no LoadBalancer, and not in the Ingress.
+# Only Pods inside the cluster (the backend) can reach it at mysql:3306.
+# -----------------------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: default
+  labels:
+    app: mysql
+spec:
+  clusterIP: None        # Headless: no load-balancing VIP; needed by StatefulSet
+  selector:
+    app: mysql           # Matches the Pod label from the StatefulSet
+  ports:
+    - port: 3306
+      targetPort: 3306

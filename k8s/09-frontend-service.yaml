@@ -1,0 +1,21 @@
+# -----------------------------------------------------------------------------
+# Frontend Service
+# -----------------------------------------------------------------------------
+# ClusterIP because the frontend must NOT be exposed directly via NodePort or
+# LoadBalancer. The Ingress (ALB) is the single external entry point and routes
+# "/" traffic to this Service on port 80.
+# -----------------------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: default
+  labels:
+    app: frontend
+spec:
+  type: ClusterIP
+  selector:
+    app: frontend         # Must match the frontend Pod label
+  ports:
+    - port: 80
+      targetPort: 80

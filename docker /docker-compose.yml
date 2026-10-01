@@ -1,0 +1,53 @@
+services:
+  mysql:
+    image:  mysql
+    container_name: studentapp-db
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3306:3306"
+    networks:
+      - student-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: studentapp-backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    ports:
+      - "5005:5005"
+    networks:
+      - student-network
+    depends_on:
+      mysql:
+        condition: service_healthy
+  
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: studentapp-frontend
+    env_file:
+      - ./frontend/.env
+    ports:
+      - "3000:80"
+    restart: unless-stopped
+    networks:
+      - student-network
+    depends_on:
+      - backend
+
+networks:
+  student-network:
+    driver: bridge
+      

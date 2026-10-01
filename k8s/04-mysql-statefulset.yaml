@@ -1,0 +1,94 @@
+# -----------------------------------------------------------------------------
+# MySQL StatefulSet
+# -----------------------------------------------------------------------------
+# A StatefulSet (not a Deployment) is used for MySQL because databases need:
+#   - Stable network identity (mysql-0 always keeps its name)
+#   - Stable, per-Pod persistent storage that survives restarts/rescheduling
+#
+# The storage chain works like this:
+#   StatefulSet
+#       -> volumeClaimTemplates   (creates one PVC per Pod)
+#           -> PVC                (requests 20Gi from storageClassName: ebs-sc)
+#               -> StorageClass   (ebs-sc)
+#                   -> EBS CSI Driver (ebs.csi.aws.com)
+#                       -> EBS gp3 volume (created dynamically in the Pod's AZ)
+#
+# MySQL has NO HPA: you cannot horizontally scale a single primary MySQL by
+# just adding Pods, and each Pod would get its own separate EBS volume/data.
+# -----------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mysql
+  namespace: default
+  labels:
+    app: mysql
+spec:
+  serviceName: mysql        # Must match the headless Service name
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql          # Pod label -> matched by the mysql Service selector
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8.0
+          ports:
+            - containerPort: 3306
+          # All DB credentials come from the shared mysql-secret. Nothing is
+          # hard-coded here.
+          envFrom:
+            - secretRef:
+                name: mysql-secret
+          volumeMounts:
+            # MySQL stores its data files here. Backing this with EBS makes the
+            # data durable across Pod restarts and rescheduling.
+            - name: mysql-data
+              mountPath: /var/lib/mysql
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          # Readiness: only send traffic once MySQL answers a ping. We use
+          # mysqladmin ping with the root password from the Secret.
+          readinessProbe:
+            exec:
+              command:
+                - bash
+                - -c
+                - "mysqladmin ping -h 127.0.0.1 -u root -p\"$MYSQL_ROOT_PASSWORD\""
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          # Liveness: restart the container only if MySQL stops responding for a
+          # sustained period (generous thresholds avoid killing a busy DB).
+          livenessProbe:
+            exec:
+              command:
+                - bash
+                - -c
+                - "mysqladmin ping -h 127.0.0.1 -u root -p\"$MYSQL_ROOT_PASSWORD\""
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 6
+  # volumeClaimTemplates auto-creates a PVC per replica. We do NOT create a
+  # static PersistentVolume; the ebs-sc StorageClass provisions EBS on demand.
+  volumeClaimTemplates:
+    - metadata:
+        name: mysql-data
+      spec:
+        accessModes:
+          - ReadWriteOnce          # EBS volumes attach to a single node at a time
+        storageClassName: ebs-sc
+        resources:
+          requests:
+            storage: 10Gi

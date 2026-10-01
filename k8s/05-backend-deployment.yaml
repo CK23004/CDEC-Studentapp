@@ -1,0 +1,91 @@
+# -----------------------------------------------------------------------------
+# Backend Deployment (Flask)
+# -----------------------------------------------------------------------------
+# A Deployment is used for the backend because it is stateless: any Pod can
+# handle any request, and Pods can be freely created/destroyed/scaled. State
+# lives in MySQL, not in the Pods.
+#
+# >>> REPLACE YOUR_DOCKER_USERNAME with your Docker Hub username. <<<
+# Docker Hub repos are public, so NO imagePullSecrets are needed.
+# -----------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: default
+  labels:
+    app: backend
+spec:
+  replicas: 2                 # Starting point; the HPA will manage this from 2-10
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend          # Pod label -> matched by the backend Service
+    spec:
+      containers:
+        - name: backend
+          image: chinmay2301/cbz-backend:latest   # <-- REPLACE username
+          ports:
+            - containerPort: 5005    # Flask listens on 0.0.0.0:5005
+          env:
+            # Non-secret config: the MySQL Service DNS name and ports.
+            - name: DB_HOST
+              value: "mysql"         # Resolves to the headless mysql Service
+            - name: DB_PORT
+              value: "3306"
+            - name: FLASK_PORT
+              value: "5005"
+            # Sensitive values pulled from the shared mysql-secret via
+            # secretKeyRef so passwords are never hard-coded in the manifest.
+            #
+            # The app runs "CREATE DATABASE IF NOT EXISTS" on startup, which
+            # needs root privileges. So it connects as root:
+            #   DB_USER=root  (matches backend/.env)
+            #   DB_PASSWORD -> MYSQL_ROOT_PASSWORD (the root account's password)
+            #   DB_NAME     -> MYSQL_DATABASE
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: MYSQL_DATABASE
+            # DB_USER is a static "root" (not from the Secret) because that is
+            # the account the app authenticates with.
+            - name: DB_USER
+              value: "root"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: MYSQL_ROOT_PASSWORD
+          # CPU requests are REQUIRED for the HPA to work. The HPA compares the
+          # Pods' actual CPU usage against their CPU REQUEST (250m). Without a
+          # request there is no baseline, so target utilization can't be computed.
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+          # Readiness gates traffic until Flask can serve /api/health.
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 5005
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          # Liveness restarts the Pod only after repeated failures (avoids
+          # aggressive restarts during brief hiccups).
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 5005
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 3

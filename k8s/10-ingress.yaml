@@ -1,0 +1,48 @@
+# -----------------------------------------------------------------------------
+# Ingress (single ALB via AWS Load Balancer Controller)
+# -----------------------------------------------------------------------------
+# ONE Ingress creates ONE ALB and exposes BOTH the frontend and backend on the
+# SAME origin (domain). This is why there is no separate API domain and no Nginx
+# reverse proxy: the ALB itself does path-based routing.
+#
+#   https://YOUR-DOMAIN/       -> frontend Service : 80   (React app)
+#   https://YOUR-DOMAIN/api    -> backend  Service : 5005 (Flask API)
+#
+# We do NOT rewrite /api. Flask already serves routes under /api (e.g.
+# /api/students), so the browser call https://YOUR-DOMAIN/api/students must
+# reach Flask unchanged as /api/students. Rewriting would break the routes.
+#
+# React uses VITE_API_URL=/api, so it calls the same origin -> no CORS, no
+# localhost, no separate domain.
+# -----------------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: app-ingress
+  namespace: default
+  annotations:
+    # internet-facing = public ALB reachable from the internet.
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    # target-type: ip routes directly to Pod IPs (works with ClusterIP Services
+    # and is the recommended mode on EKS).
+    alb.ingress.kubernetes.io/target-type: ip
+spec:
+  ingressClassName: alb        # Handled by the AWS Load Balancer Controller
+  rules:
+    - http:
+        paths:
+          # IMPORTANT: list /api BEFORE / so the more specific path wins.
+          - path: /api
+            pathType: Prefix   # Matches /api and everything under it (no rewrite)
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 5005
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80

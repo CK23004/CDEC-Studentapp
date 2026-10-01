@@ -83,13 +83,13 @@ def init_db():
 init_db()
 
 
-@app.route("/health", methods=["GET"])
+@app.route("/api/health", methods=["GET"])
 def health_check():
     """Simple health check endpoint."""
     return jsonify({"status": "healthy", "service": "Student Management API"}), 200
 
 
-@app.route("/students", methods=["GET"])
+@app.route("/api/students", methods=["GET"])
 def get_students():
     """Fetch all student records from MySQL database."""
     conn = None
@@ -108,7 +108,7 @@ def get_students():
             conn.close()
 
 
-@app.route("/students", methods=["POST"])
+@app.route("/api/students", methods=["POST"])
 def add_student():
     """Insert a new student record into MySQL database."""
     conn = None
@@ -161,7 +161,7 @@ def add_student():
             conn.close()
 
 
-@app.route("/students/<int:student_id>", methods=["DELETE"])
+@app.route("/api/students/<int:student_id>", methods=["DELETE"])
 def delete_student(student_id):
     """Delete a student record by ID from MySQL database."""
     conn = None
